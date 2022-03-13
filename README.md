@@ -23,6 +23,12 @@ source ./bigd/bin/activate
 To start the spark cluster, use [docker-compose](https://docs.docker.com/compose/install/) (in Mac this comes out of the box with Docker Desktop, for others refer to the [Install Instructions](https://docs.docker.com/compose/install/))
 
 ```bash
+# verify whether docker-compose is installed already, else install it
+docker-compose -v
+```
+
+
+```bash
 # to start all containers
 docker-compose up 
 
