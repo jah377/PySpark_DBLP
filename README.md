@@ -8,16 +8,19 @@ Installing python dependencies in a virtual environment
 ```bash
 # Creation of the virtual environment
 python -m venv ./bigd
-
-# Installation of dependencies
-pip install -r requirements.txt
 ```
+
 And then you can mount this environment with: 
 ```bash
 # when using fish
 source ./bigd/bin/activate.fish
 # or other (multiple activation scripts are in this folder)
 source ./bigd/bin/activate
+```
+
+```bash
+# Installation of dependencies
+pip install -r requirements.txt
 ```
 
 To start the spark cluster, use [docker-compose](https://docs.docker.com/compose/install/) (in Mac this comes out of the box with Docker Desktop, for others refer to the [Install Instructions](https://docs.docker.com/compose/install/))
