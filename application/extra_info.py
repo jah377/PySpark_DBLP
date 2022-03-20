@@ -3,9 +3,7 @@ import json
 import pandas as pd
 import unidecode
 from typing import Any, Callable, Dict, List, Union
-
-
-DATA_PATH = "./data"
+from constants import DATA_PATH
 
 
 def get_json_dict(path: str) -> Dict:

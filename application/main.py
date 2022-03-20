@@ -1,6 +1,7 @@
 import duckdb
 import googletrans
 import pyspark.sql.functions as fn
+from constants import DATA_PATH
 from extra_info import (load_extra_information_from_jsons, upload_duckdb,
                         upload_extra_information)
 from googletrans import Translator
@@ -29,11 +30,11 @@ if __name__ == "__main__":
 
     to_eng = fn.udf(lambda x: translate(translator, x), fn.StringType())
 
-    train = spark.read.csv(f"application/data/train.csv")
+    train = spark.read.csv(f"{DATA_PATH}/train.csv")
 
     for i in range(1, 5):
         df = (spark.read.option("header", True)
-              .csv(f"application/data/dblp-{i}.csv"))
+              .csv(f"{DATA_PATH}/dblp-{i}.csv"))
         (df.withColumn("clean_author", fn.when(
             df.pauthor.endswith(".") & df.ptitle.contains("|"),
             df.ptitle).otherwise(df.pauthor))
