@@ -19,6 +19,7 @@ def translate(input: str) -> str:
         str: translated string to english
     """
     translator = Translator()
+    translator.raise_Exception = True
     return translator.translate(input, dest="en").text
 
 
