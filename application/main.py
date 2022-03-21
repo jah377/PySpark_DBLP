@@ -8,27 +8,27 @@ from googletrans import Translator
 from pyspark.sql import SparkSession
 
 
-def translate(translator: googletrans.Translator, string: str) -> str:
+def translate(input: str) -> str:
     """Translates the given string with the provided translator to english.
 
     Args:
         translator (googletrans.Translator): Translator object
-        string (str): string to translate
+        input (str): string to translate
 
     Returns:
         str: translated string to english
     """
-    return translator.translate(string, dest="en").text
+    translator = Translator()
+    return translator.translate(input, dest="en").text
 
 
 if __name__ == "__main__":
-    translator = Translator()
     spark = (SparkSession.builder
              .master("local")
              .config("spark.driver.bindAddress", "localhost")
              .getOrCreate())
 
-    to_eng = fn.udf(lambda x: translate(translator, x), fn.StringType())
+    to_eng = fn.udf(translate, fn.StringType())
 
     train = spark.read.csv(f"{DATA_PATH}/train.csv")
 
@@ -42,6 +42,7 @@ if __name__ == "__main__":
              df.pauthor.endswith(".") & df.ptitle.contains("|"),
              df.pauthor).otherwise(df.ptitle))
          .withColumn("pyear", fn.abs(df.pyear))
+        #  .withColumn("translated_title", to_eng('clean_title'))
          .drop(df.pauthor)
          .drop(df.ptitle)
          .show())
