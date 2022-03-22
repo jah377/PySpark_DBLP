@@ -17,6 +17,18 @@ def calc_jaccard(key_df, data_df, column:str):
     https://medium.com/analytics-vidhya/fuzzy-string-matching-with-spark-in-python-7fcd0c422f71
     """
     
+    # ===============
+    # Lucas
+    #   The model only needs to be trained once per feature
+    #   If the function is used in its current form, for example:
+    #       calc_jaccard(train, df, 'pauthor') to return jaccard of train set
+    #       calc_jaccard(test, df, 'pauthor') to return jaccard of test set
+    #   then Pipeline().fit() would be repeated when it only needs to be performed once
+    #   
+    #   The model is column specific so you would need to create a new model for
+    #   each text column that you want to compare (eg. pauthor, ptitle, etc)
+    # ===============
+    
     # create model
     model = Pipeline(stages=[
         SQLTransformer(statement=f"SELECT *, lower({column}) lower FROM __THIS__"),
