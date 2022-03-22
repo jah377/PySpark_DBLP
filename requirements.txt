@@ -42,3 +42,4 @@ tornado==6.1
 traitlets==5.1.1
 urllib3==1.26.8
 wcwidth==0.2.5
+googletrans==2.4.0
