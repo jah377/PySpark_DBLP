@@ -52,7 +52,8 @@ def prepareFeatures(features, data):
     '''
     assembler = VectorAssembler(inputCols=features, outputCol='features')
     transformed_data = assembler.transform(data)
-    transformed_data = transformed_data.withColumn("label", transformed_data.label.cast('boolean').cast('integer'))
+    if "label" in transformed_data.columns:
+        transformed_data = transformed_data.withColumn("label", transformed_data.label.cast('boolean').cast('integer'))
     return transformed_data
 
 
@@ -67,15 +68,30 @@ def trainLogisticRegression(train):
     return "LogisticRegression", reg.fit(train)
 
 
+def enrichIncomingDataset(data, cleaned_base_data):
+    data = data.drop(*["_c0", "partition"])
+
+    # merging training data with cleaned data and calculate new columns
+    data = mergeDatasetOnKey("1", data, cleaned_base_data)
+    data = mergeDatasetOnKey("2", data, cleaned_base_data)
+    data = calculateNumericFeatures(data)
+
+    required_features = [
+                    'jaccard_author',
+                    'jaccard_title',
+                    'jaccard_key',
+                    'diff_year'
+                   ]
+
+    return prepareFeatures(required_features, data)
+
 if __name__ == "__main__":
 
     spark = startSparkSession()
 
     df = spark.read.csv("data/db/db.csv", sep="!", header=True)
-    df = df.drop(*["id", "partition"])
-
-    train_df = spark.read.csv("data/train.csv", header=True)
-    train_df = train_df.drop(*[
+    # technically not needed, since we are doing a feature selection in `def enrichIncomingDataset``
+    df = df.drop(*[
         "_c0",
         "paddress",
         "ppublisher",
@@ -87,33 +103,43 @@ if __name__ == "__main__":
         "partition"
     ])
 
-    # merging training data with cleaned data and calculate new columns
-    train_df = mergeDatasetOnKey("1", train_df, df)
-    train_df = mergeDatasetOnKey("2", train_df, df)
-    train_df = calculateNumericFeatures(train_df)
-
-
-    required_features = [
-                    'jaccard_author',
-                    'jaccard_title',
-                    'jaccard_key',
-                    'diff_year'
-                   ]
-
-    prepared_data = prepareFeatures(required_features, train_df)
-
+    # training
+    train_df = spark.read.csv("data/train.csv", header=True)
+    prepared_data = enrichIncomingDataset(train_df, df)
     [train, test_with_label] = prepared_data.randomSplit([0.9, 0.1], seed=1000)
 
+    name, model = trainRandomForest(train)
+    print("Finished Training")
+
+    rf_predicts = model.transform(test_with_label)
+
+    # prediction
+    test_df = spark.read.csv("data/test_hidden.csv", header=True)
+    prepared_data = enrichIncomingDataset(test_df, df)
+
+    predictions = model.transform(prepared_data)
+    predictions = predictions.withColumn("prediction", fn.initcap(predictions.prediction.cast('Boolean').cast('String')))
+    predictions.select("prediction").write.csv(path='submit/prediction.csv', mode='overwrite')
+
+
+    # validation
+    validation_df = spark.read.csv("data/validation_hidden.csv", header=True)
+    prepared_data = enrichIncomingDataset(validation_df, df)
+
+    validations = model.transform(prepared_data)
+    validations = validations.withColumn("prediction", fn.initcap(validations.prediction.cast('Boolean').cast('String')))
+    validations.select("prediction").write.csv(path='submit/validation.csv', mode='overwrite')
+
+
     multi_evaluator = MulticlassClassificationEvaluator(labelCol = 'label', metricName = 'accuracy')
+    print(f'{name} Accuracy:', multi_evaluator.evaluate(rf_predicts))
+
+    # TODO loading and saving, see comments below 👇
 
     # loading doesnt work that way: 
     #   py4j.protocol.Py4JJavaError: An error occurred while calling o227.load.
     #   java.lang.NoSuchMethodException: org.apache.spark.ml.classification.RandomForestClassificationModel.<init>(java.lang.String)
     # name, model = "RF", RandomForestClassifier.read().load("test_rf")
-
-    name, model = trainRandomForest(train)
-    rf_predicts = model.transform(test_with_label)
-    print(f'{name} Accuracy:', multi_evaluator.evaluate(rf_predicts))
 
     # only save model when loading actually works
     # model.write().overwrite().save("test_rf")
