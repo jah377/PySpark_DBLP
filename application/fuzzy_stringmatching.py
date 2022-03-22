@@ -14,6 +14,8 @@ def calc_jaccard(key_df, data_df, column:str):
         
     Output:
         pyspark.sql.dataframe.DataFrame containing _c1 (pkey1), _c2 (pkey2), and jaccard distance of a given column
+        
+    https://medium.com/analytics-vidhya/fuzzy-string-matching-with-spark-in-python-7fcd0c422f71
     """
     
     # create model
