@@ -2,7 +2,6 @@ from pyspark.ml import Pipeline
 from pyspark.ml.feature import StopWordsRemover, Tokenizer, NGram, HashingTF, MinHashLSH, RegexTokenizer, SQLTransformer
 
 
-
 def calc_jaccard(key_df, data_df, column:str):
     """
     model, transform, and calculate jaccard distance
@@ -35,12 +34,11 @@ def calc_jaccard(key_df, data_df, column:str):
                     .transform(data_df.select(['pkey',column]))\
                     .select('pkey', column, 'concat', 'char', 'ngram', 'vector', 'lsh')
                     
-    # create tables to compare based on keys in key_df
+    # create tables for key1 and key2
     table1 = key_df.select('_c1').join(transformed, transformed.pkey==key_df._c1, 'left').drop('pkey')
     table2 = key_df.select('_c2').join(transformed, transformed.pkey==key_df._c2, 'left').drop('pkey')
 
-    # calculate jaccardDist
-    ## calculates distance from entire row of Tokens, NGram, HashingTF, and MinHashLSH transformations
+    # calculate jaccardDist row-wise between tables
     results = model.stages[-1].approxSimilarityJoin(table1, table2, 0.5, 'jaccardDist')
     
     return results.select('datasetA._c1', 'datasetB._c2', 'jaccardDist')
