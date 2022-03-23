@@ -5,26 +5,8 @@ from constants import DATA_PATH
 from extra_info import (load_extra_information_from_jsons, upload_duckdb,
                         upload_extra_information)
 from pyspark.sql import SparkSession
-<<<<<<< HEAD
 from pyspark.sql.types import IntegerType
 from utils import translate, clean_ints
-=======
-
-
-def translate(input: str) -> str:
-    """Translates the given string with the provided translator to english.
-
-    Args:
-        translator (googletrans.Translator): Translator object
-        input (str): string to translate
-
-    Returns:
-        str: translated string to english
-    """
-    translator = Translator()
-    translator.raise_Exception = True
-    return translator.translate(input, dest="en").text
->>>>>>> 7efb18d43470ab788de873c7cd8045d5265d4627
 
 
 if __name__ == "__main__":
