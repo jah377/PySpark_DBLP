@@ -34,7 +34,7 @@ def getDfWithSuffixedColumns(df, suffix):
 
 def mergeDatasetOnKey(suffix, df1, df2): 
     df_new = getDfWithSuffixedColumns(df2, suffix=suffix)
-    return df1.join(df_new, df1[f"key{suffix}"]==df_new[f"pkey{suffix}"], "inner")
+    return df1.join(df_new, df1[f"key{suffix}"]==df_new[f"pkey{suffix}"], "left")
 
 def calculateNumericFeatures(training_df):
     jaccard_udf = fn.udf(jaccard_similarity, fn.StringType()) # defining udf
@@ -74,6 +74,19 @@ def enrichIncomingDataset(data, cleaned_base_data):
     # merging training data with cleaned data and calculate new columns
     data = mergeDatasetOnKey("1", data, cleaned_base_data)
     data = mergeDatasetOnKey("2", data, cleaned_base_data)
+    # if pkey1 is null after the initial merge, we have to fill the values with values from pkey2
+    for c in ['pyear', 'pid', 'pkey', 'ptype_id', 'pjournal_id', 'clean_author', 'clean_title']:
+        data = data.withColumn(f"{c}1",
+                fn.when(
+                    fn.isnan(f"{c}1") | fn.col(f"{c}1").isNull(),
+                    fn.col(f"{c}2")).otherwise(fn.col(f"{c}1")))
+
+    for c in ['pyear', 'pid', 'pkey', 'ptype_id', 'pjournal_id', 'clean_author', 'clean_title']:
+        data = data.withColumn(f"{c}2",
+                fn.when(
+                    fn.isnan(f"{c}2") | fn.col(f"{c}2").isNull(),
+                    fn.col(f"{c}1")).otherwise(fn.col(f"{c}2")))
+
     data = calculateNumericFeatures(data)
 
     required_features = [
@@ -106,20 +119,27 @@ if __name__ == "__main__":
     # training
     train_df = spark.read.csv("data/train.csv", header=True)
     prepared_data = enrichIncomingDataset(train_df, df)
+
+    print("Training set count:", train_df.count())
+    print("Prepared Data Count", prepared_data.count())
+    print()
+
     [train, test_with_label] = prepared_data.randomSplit([0.9, 0.1], seed=1000)
 
     name, model = trainRandomForest(train)
-    print("Finished Training")
 
     rf_predicts = model.transform(test_with_label)
 
-    # prediction
     test_df = spark.read.csv("data/test_hidden.csv", header=True)
     prepared_data = enrichIncomingDataset(test_df, df)
 
     predictions = model.transform(prepared_data)
     predictions = predictions.withColumn("prediction", fn.initcap(predictions.prediction.cast('Boolean').cast('String')))
     predictions.select("prediction").write.csv(path='submit/prediction.csv', mode='overwrite')
+    print("Test set count:", test_df.count())
+    print("Prepared Data Count", prepared_data.count())
+    print("Predictions Count", predictions.count())
+    print()
 
 
     # validation
@@ -129,6 +149,10 @@ if __name__ == "__main__":
     validations = model.transform(prepared_data)
     validations = validations.withColumn("prediction", fn.initcap(validations.prediction.cast('Boolean').cast('String')))
     validations.select("prediction").write.csv(path='submit/validation.csv', mode='overwrite')
+    print("Validation set count:", validation_df.count())
+    print("Prepared Data Count", prepared_data.count())
+    print("Predictions Count", validations.count())
+    print()
 
 
     multi_evaluator = MulticlassClassificationEvaluator(labelCol = 'label', metricName = 'accuracy')
