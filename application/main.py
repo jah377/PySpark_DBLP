@@ -15,9 +15,23 @@ if __name__ == "__main__":
                    "JOURNAL", "JOURNALFULL", "TYPE"]
     upload_extra_information(load_extra_information_from_jsons,
                              upload_duckdb, table_names, con)
-
-    # To query for the data run con.execute("<QUERY>").fetchdf() like
-    print(con.execute("SELECT * FROM BOOKTITLE WHERE id = 1").fetchdf())
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS TRAIN(
+            pyear int,
+            paddress varchar,
+            ppublisher varchar,
+            pseries varchar,
+            pid varchar,
+            pkey varchar,
+            ptype_id int,
+            pjournal_id int,
+            pbooktitle_id int,
+            pjournalfull_id varchar,
+            pbooktitlefull_id int,
+            clean_author varchar,
+            clean_title varchar,
+            PRIMARY KEY(pkey))
+    """)
 
     spark = (SparkSession.builder
              .master("local")
@@ -54,3 +68,18 @@ if __name__ == "__main__":
             .toPandas())
         con.register("train_data", df)
         con.execute("INSERT INTO TRAIN SELECT * FROM train_data")
+
+    # This query retrieves the extra data from the JSONs
+    print(con.execute("""
+        SELECT
+            pyear as year, paddress as address, ppublisher as publisher,
+            pseries as series, pid as id, pkey as key, clean_author, clean_title,
+            TYPE.name as type, BOOKTITLE.name as book_title,
+            BOOKTITLEFULL.name as full_book_title, JOURNAL.name as journal,
+            JOURNALFULL.name as full_journal
+        FROM TRAIN
+        JOIN TYPE ON (TRAIN.ptype_id = TYPE.id)
+        JOIN BOOKTITLE ON (TRAIN.pbooktitle_id = BOOKTITLE.id)
+        JOIN BOOKTITLEFULL ON (TRAIN.pbooktitle_id = BOOKTITLEFULL.id)
+        JOIN JOURNAL ON (TRAIN.pbooktitle_id = JOURNAL.id)
+        JOIN JOURNALFULL ON (TRAIN.pbooktitle_id = JOURNALFULL.id)""").fetch_df())
