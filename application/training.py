@@ -7,6 +7,7 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.feature import VectorAssembler
 
 import time
+import os
 
 def startSparkSession():
     return (SparkSession.builder
@@ -136,10 +137,11 @@ if __name__ == "__main__":
 
 
     timestamp = int(time.time())
+    os.mkdir(f"submit/{timestamp}")
 
     predictions = model.transform(prepared_data)
     predictions = predictions.withColumn("prediction", fn.initcap(predictions.prediction.cast('Boolean').cast('String')))
-    predictions.select("prediction").toPandas().to_csv(f'submit/{timestamp}_prediction.csv', index=False)
+    predictions.select("prediction").toPandas().to_csv(f'submit/{timestamp}/prediction.csv', index=False, header=False)
 
     print("Test set count:", test_df.count())
     print("Prepared Data Count", prepared_data.count())
@@ -152,7 +154,7 @@ if __name__ == "__main__":
 
     validations = model.transform(prepared_data)
     validations = validations.withColumn("prediction", fn.initcap(validations.prediction.cast('Boolean').cast('String')))
-    validations.select("prediction").toPandas().to_csv(f'submit/{timestamp}_validation.csv', index=False)
+    validations.select("prediction").toPandas().to_csv(f'submit/{timestamp}/validation.csv', index=False, header=False)
 
     print("Validation set count:", validation_df.count())
     print("Prepared Data Count", prepared_data.count())
