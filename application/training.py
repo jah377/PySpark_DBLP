@@ -6,6 +6,7 @@ from pyspark.ml.classification import LogisticRegression, GBTClassifier, RandomF
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.feature import VectorAssembler
 
+import time
 
 def startSparkSession():
     return (SparkSession.builder
@@ -133,14 +134,17 @@ if __name__ == "__main__":
     test_df = spark.read.csv("data/test_hidden.csv", header=True)
     prepared_data = enrichIncomingDataset(test_df, df)
 
+
+    timestamp = int(time.time())
+
     predictions = model.transform(prepared_data)
     predictions = predictions.withColumn("prediction", fn.initcap(predictions.prediction.cast('Boolean').cast('String')))
-    predictions.select("prediction").write.csv(path='submit/prediction.csv', mode='overwrite')
+    predictions.select("prediction").toPandas().to_csv(f'submit/{timestamp}_prediction.csv', index=False)
+
     print("Test set count:", test_df.count())
     print("Prepared Data Count", prepared_data.count())
     print("Predictions Count", predictions.count())
     print()
-
 
     # validation
     validation_df = spark.read.csv("data/validation_hidden.csv", header=True)
@@ -148,7 +152,8 @@ if __name__ == "__main__":
 
     validations = model.transform(prepared_data)
     validations = validations.withColumn("prediction", fn.initcap(validations.prediction.cast('Boolean').cast('String')))
-    validations.select("prediction").write.csv(path='submit/validation.csv', mode='overwrite')
+    validations.select("prediction").toPandas().to_csv(f'submit/{timestamp}_validation.csv', index=False)
+
     print("Validation set count:", validation_df.count())
     print("Prepared Data Count", prepared_data.count())
     print("Predictions Count", validations.count())
