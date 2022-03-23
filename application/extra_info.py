@@ -45,6 +45,7 @@ def load_extra_information_from_jsons() -> List[Union[Dict, List[Dict]]]:
                         "name": unidecode.unidecode(data["name"]).strip()}
                        if data["name"] is not None else data
                        for data in title_full_info]
+    title_full_info[4]["name"] = None
     jsons_data.append(title_full_info)
 
     # Load journal info
@@ -100,11 +101,13 @@ def upload_duckdb(data_list: List[Union[Dict, List[Dict]]],
 
 def upload_extra_information(extra_data_function: Callable[[Any], Any],
                              upload_function: Callable[[Any], None], *args) -> None:
-    """Uploads the returned extra data with the given upload function.
+    """Uploads the returned extra data with the given upload function and
+    any extra parameters.
 
     Args:
         extra_data_function (Callable[[Any], Any]): Function retrieving extra data
         upload_function (Callable[[Any], None]): Function uploading extra data
+        arg
     """
     data = extra_data_function()
     upload_function(data, *args)
