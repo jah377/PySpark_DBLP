@@ -1,4 +1,5 @@
 from googletrans import Translator
+from pyspark.sql import SparkSession
 from typing import Union
 
 
@@ -26,3 +27,22 @@ def translate(x: str) -> str:
     """
     translator = Translator()
     return translator.translate(x, dest="en").text
+
+
+def start_spark() -> SparkSession:
+    """Creates a spark session on the local machine.
+
+    Returns:
+        SparkSession: spark session object
+    """
+    return (SparkSession.builder
+            .master("local")
+            .config("spark.driver.bindAddress", "localhost")
+            .config("spark.driver.port", "8080")
+            .config("spark.driver.memory", "2g")
+            .config("spark.driver.host", "localhost")
+            .config("spark.dynamicAllocation.enabled", "true")
+            .config("spark.default.parallelism", "2")
+            .config("spark.shuffle.io.retryWait", "2000ms")
+            .config("spark.shuffle.io.maxRetries", "2")
+            .getOrCreate())
