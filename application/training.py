@@ -1,3 +1,5 @@
+from multiprocessing.spawn import prepare
+from random import seed
 import duckdb
 import os
 import pyspark.sql.functions as fn
@@ -25,6 +27,11 @@ def jaccard_similarity(a: Iterable, b: Iterable) -> float:
     Returns:
         float: Jaccard similarity
     """
+    if not "/" in a:
+        a = a.replace("|"," ").replace("-"," ").replace(".","").lower().split(" ")
+        b = b.replace("|"," ").replace("-"," ").replace(".","").lower().split(" ")
+    if a=="nan" or b=="nan":
+        return 0
     a = set(a)
     b = set(b)
     # Calculate Jaccard similarity
@@ -43,14 +50,25 @@ def mergeDatasetOnKey(suffix, df1, df2):
 def calculateNumericFeatures(training_df):
     jaccard_udf = fn.udf(jaccard_similarity, FloatType())  # defining udf
     temp_df = training_df
-
+    temp_df = temp_df.withColumn("jaccard_book_title", jaccard_udf(
+        *["full_book_title1", "full_book_title2"]).cast("Double"))
+    temp_df = temp_df.withColumn("jaccard_journal", jaccard_udf(
+        *["full_journal1", "full_journal2"]).cast("Double"))
     temp_df = temp_df.withColumn("jaccard_author", jaccard_udf(
         *["clean_author1", "clean_author2"]).cast("Double"))
     temp_df = temp_df.withColumn("jaccard_title", jaccard_udf(
         *["clean_title1", "clean_title2"]).cast("Double"))
     temp_df = temp_df.withColumn(
         "jaccard_key", jaccard_udf(*["key1", "key2"]).cast("Double"))
-    temp_df = temp_df.withColumn("diff_year", temp_df.year2 - temp_df.year1)
+    temp_df = temp_df.withColumn("diff_year", fn.abs(temp_df.year2 - temp_df.year1))
+    return temp_df
+
+
+def compareSources(training_df):
+    temp_df = training_df
+    temp_df = temp_df.withColumn("same_type", fn.col("type1")==fn.col("type2"))
+    temp_df = temp_df.withColumn("same_journal", fn.col("journal1")==fn.col("journal2"))
+    #temp_df = temp_df.withColumn("same_type", fn.col("type1")==fn.col("type2")).drop("type1").drop("type2")
     return temp_df
 
 
@@ -69,7 +87,7 @@ def prepareFeatures(features, data):
 def trainRandomForest(train):
     rf = RandomForestClassifier(labelCol="label",
                                 featuresCol="features",
-                                maxDepth=8)
+                                maxDepth=8, seed=1000)
     return "RandomForest", rf.fit(train)
 
 
@@ -79,20 +97,21 @@ def trainLogisticRegression(train):
 
 
 def enrichIncomingDataset(data, cleaned_base_data):
-    data = data.drop(*["_c0", "partition"])
+    data = data.drop(*[ "partition"])
 
     # merging training data with cleaned data and calculate new columns
     data = mergeDatasetOnKey("1", data, cleaned_base_data)
     data = mergeDatasetOnKey("2", data, cleaned_base_data)
     # if pkey1 is null after the initial merge, we have to fill the values with values from pkey2
-    for c in ["year", "id", "key", "type", "journal", "clean_author", "clean_title"]:
+    feature_list = ["year", "id", "key", "type", "journal", "clean_author", "clean_title", "book_title"]
+    for c in feature_list:
         data = data.withColumn(f"{c}1",
                                fn.when(
                                    (fn.isnan(f"{c}1")
                                     | fn.col(f"{c}1").isNull()),
                                    fn.col(f"{c}2")).otherwise(fn.col(f"{c}1")))
 
-    for c in ["year", "id", "key", "type", "journal", "clean_author", "clean_title"]:
+    for c in feature_list:
         data = data.withColumn(f"{c}2",
                                fn.when(
                                    fn.isnan(f"{c}2") | fn.col(
@@ -100,12 +119,19 @@ def enrichIncomingDataset(data, cleaned_base_data):
                                    fn.col(f"{c}1")).otherwise(fn.col(f"{c}2")))
 
     data = calculateNumericFeatures(data)
+    data = compareSources(data)
 
     required_features = [
         "jaccard_author",
         "jaccard_title",
         "jaccard_key",
-        "diff_year"
+        "diff_year",
+        "jaccard_journal",
+        "jaccard_book_title",
+        "same_type",
+        "same_journal",
+
+
     ]
 
     return prepareFeatures(required_features, data)
@@ -120,41 +146,24 @@ if __name__ == "__main__":
     create_train_table(con)
     spark = start_spark()
 
-<<<<<<< HEAD
-    spark = startSparkSession()
-
-    df = spark.read.csv("data/db/db2.csv", sep="!", header=True)
-    # technically not needed, since we are doing a feature selection in `def enrichIncomingDataset``
-    df = df.drop(*[
-        "_c0",
-        "paddress",
-        "ppublisher",
-        "pseries",
-        "pbooktitlefull_id",
-        "pjournalfull_id",
-        "peditor",
-        "pbooktitle_id",
-        "partition"
-    ])
-=======
     full_data = get_and_upload_clean_train_data(con, spark)
 
     df = load_train_df_to_spark(spark, get_train_with_extra(con))
->>>>>>> b439b09d65fca11c444dbe510f380eef20401f2b
-
     # training
     train_df = spark.read.csv("data/train.csv", header=True)
-    prepared_data = enrichIncomingDataset(train_df, df)
 
+    prepared_data = enrichIncomingDataset(train_df, df)
+    print(prepared_data.toPandas()['type1'])
     print("Training set count:", train_df.count())
     print("Prepared Data Count", prepared_data.count())
     print()
 
     train, test_with_label = prepared_data.randomSplit([0.9, 0.1], seed=1000)
-
+    
     name, model = trainRandomForest(train)
-
+    print(train.toPandas().columns)
     rf_predicts = model.transform(test_with_label)
+    
 
     test_df = spark.read.csv("data/test_hidden.csv", header=True)
     prepared_data = enrichIncomingDataset(test_df, df)
@@ -165,7 +174,7 @@ if __name__ == "__main__":
     predictions = model.transform(prepared_data)
     predictions = predictions.withColumn("prediction", fn.initcap(
         predictions.prediction.cast("Boolean").cast("String")))
-    predictions.select("prediction").toPandas().to_csv(
+    predictions.toPandas().astype({'_c0':'int64'}).sort_values("_c0")['prediction'].to_csv(
         f"submit/{timestamp}/prediction.csv", index=False, header=False)
 
     print("Test set count:", test_df.count())
@@ -180,7 +189,7 @@ if __name__ == "__main__":
     validations = model.transform(prepared_data)
     validations = validations.withColumn("prediction", fn.initcap(
         validations.prediction.cast("Boolean").cast("String")))
-    validations.select("prediction").toPandas().to_csv(
+    validations.toPandas().astype({'_c0':'int64'}).sort_values("_c0")["prediction"].to_csv(
         f"submit/{timestamp}/validation.csv", index=False, header=False)
 
     print("Validation set count:", validation_df.count())
@@ -191,6 +200,7 @@ if __name__ == "__main__":
     multi_evaluator = MulticlassClassificationEvaluator(labelCol="label",
                                                         metricName="accuracy")
     print(f"{name} Accuracy:", multi_evaluator.evaluate(rf_predicts))
+
 
     # TODO loading and saving, see comments below 👇
 

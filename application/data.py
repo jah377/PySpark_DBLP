@@ -8,7 +8,7 @@ from duckdb import DuckDBPyConnection
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import *
 from typing import Any, Callable, Dict, List, Union
-from utils import clean_ints
+from utils import clean_ints, decode
 
 
 def get_json_dict(path: str) -> Dict:
@@ -152,6 +152,7 @@ def clean_train_data(df: DataFrame) -> DataFrame:
     Returns:
         DataFrame: Clean Spark training DataFrame
     """
+    unidecode_udf = fn.udf(decode, StringType())
     clean_ints_udf = fn.udf(clean_ints, IntegerType())
     return (
         df.withColumn("clean_author", fn.when(
@@ -160,6 +161,8 @@ def clean_train_data(df: DataFrame) -> DataFrame:
           .withColumn("clean_title", fn.when(
               df.pauthor.endswith(".") & df.ptitle.contains("|"),
               df.pauthor).otherwise(df.ptitle))
+          .withColumn("clean_author", unidecode_udf(fn.col("clean_author")))
+          .withColumn("clean_title", unidecode_udf(fn.col("clean_title")))
           .withColumn("pkey", fn.when(
               df.pbooktitle_id.contains("/"),
               df.pbooktitle_id).otherwise(df.pkey))

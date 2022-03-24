@@ -1,6 +1,7 @@
 from googletrans import Translator
 from pyspark.sql import SparkSession
 from typing import Union
+import unidecode
 
 
 def clean_ints(x: Union[str, None]) -> Union[int, None]:
@@ -14,6 +15,8 @@ def clean_ints(x: Union[str, None]) -> Union[int, None]:
     """
     return int(x) if x is not None and x.isdigit() else None
 
+def decode(x):
+    return unidecode.unidecode(str(x)).strip()
 
 def translate(x: str) -> str:
     """Translates the given string with the provided translator to english.
