@@ -104,7 +104,7 @@ if __name__ == "__main__":
 
     spark = startSparkSession()
 
-    df = spark.read.csv("data/db/db.csv", sep="!", header=True)
+    df = spark.read.csv("data/db/db2.csv", sep="!", header=True)
     # technically not needed, since we are doing a feature selection in `def enrichIncomingDataset``
     df = df.drop(*[
         "_c0",

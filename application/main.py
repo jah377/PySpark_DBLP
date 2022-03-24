@@ -7,7 +7,7 @@ from extra_info import (load_extra_information_from_jsons, upload_duckdb,
 from pyspark.sql import SparkSession
 from pyspark.sql.types import IntegerType
 from utils import translate, clean_ints
-
+import unidecode
 
 if __name__ == "__main__":
     con = duckdb.connect(database=":memory:")
@@ -44,13 +44,14 @@ if __name__ == "__main__":
     train = spark.read.csv(f"{DATA_PATH}/train.csv")
 
     data = []
+    dblp = pd.DataFrame()
     for i in range(1, 5):
         df = (spark.read.option("header", True)
               .csv(f"{DATA_PATH}/dblp-{i}.csv"))
-        df = (df.withColumn("clean_author", fn.when(
+        df = (df.withColumn("author", fn.when(
             df.pauthor.endswith(".") & df.ptitle.contains("|"),
             df.ptitle).otherwise(df.pauthor))
-            .withColumn("clean_title", fn.when(
+            .withColumn("title", fn.when(
                 df.pauthor.endswith(".") & df.ptitle.contains("|"),
                 df.pauthor).otherwise(df.ptitle))
             .withColumn("pkey", fn.when(
@@ -60,15 +61,19 @@ if __name__ == "__main__":
                 df.ptype_id.contains("/"),
                 df.ptype_id).otherwise(fn.col("pkey")))
             .withColumn("pyear", fn.abs(df.pyear).cast(IntegerType()))
+            .withColumn("clean_author", unidecode.unidecode(fn.translate(fn.col('author'), '|-', '  ')))
+            .withColumn("clean_title", unidecode.unidecode(fn.translate(fn.col('title'), '|-', '  ')))
             .withColumn("ptype_id", clean_ints_udf(df.ptype_id))
             .withColumn("pjournal_id", clean_ints_udf(df.pjournal_id))
             .withColumn("pbooktitle_id", clean_ints_udf(df.pbooktitle_id))
             .withColumn("pjournalfull_id", clean_ints_udf(df.pjournalfull_id))
-            .drop("pauthor", "ptitle", "partition", "_c0", "peditor")
+            .drop("pauthor", "ptitle", "partition", "_c0", "peditor", "author", "title")
             .toPandas())
+        db2 = pd.concat([dblp, df]).reset_index(drop=True)
+        print(db2)
         con.register("train_data", df)
         con.execute("INSERT INTO TRAIN SELECT * FROM train_data")
-
+ 
     # This query retrieves the extra data from the JSONs
     print(con.execute("""
         SELECT
