@@ -1,4 +1,5 @@
-# Big Data Course (5294BIDA6Y): PySpark-DuckDB DBLP Project
+# PySpark-DuckDB DBLP Project
+*Big Data Course (5294BIDA6Y)*
 
 ![ScreenShot](https://raw.github.com/jah377/PySpark_DBLP/main/report/github_MLpipeline.png)
 
