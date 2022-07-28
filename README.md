@@ -1,6 +1,6 @@
 # Big Data Course (5294BIDA6Y): PySpark-DuckDB DBLP Project
 
-![ScreenShot](https://raw.github.com/jah377/PySpark_DBLP/main/report/github_pipeline.png)
+![ScreenShot](https://raw.github.com/jah377/PySpark_DBLP/main/report/github_MLpipeline.png)
 
 
 This repository contains code corresponding to the analyses presented during the Final Project Symposium, in partial fulfillment for the degree of MSc. in Data Science at the University of Amsterdam.
