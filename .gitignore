@@ -2,3 +2,4 @@
 bigd/*
 **/bigd/*
 **/__pycache__/*
+/validation_csv
